@@ -62,7 +62,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'hard to guess string'
-    """
+
     MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.qq.com')
     MAIL_PORT = int(os.environ.get('MAIL_PORT', '465'))
     #MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() in \
@@ -72,14 +72,7 @@ class Config:
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
     # 不是密码是邮件服务器的授权码
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
-    """
-    MAIL_SERVER = 'smtp.qq.com'
-    MAIL_PORT = 465
-    MAIL_USE_TLS = False
-    MAIL_USE_SSL = True
-    MAIL_USERNAME = '3285186155@qq.com'
-    #令牌时间有限制
-    MAIL_PASSWORD = 'xzzwguqwfdxydbdc'
+
 
     FLASKY_MAIL_SUBJECT_PREFIX = '[Flasky]'
     FLASKY_MAIL_SENDER = 'Flasky Admin <3285186155@qq.com>'

@@ -78,8 +78,9 @@ class Config:
     MAIL_USE_TLS = False
     MAIL_USE_SSL = True
     MAIL_USERNAME = '3285186155@qq.com'
+    
     #令牌时间有限制
-    MAIL_PASSWORD = 'xzzwguqwfdxydbdc'
+    MAIL_PASSWORD = 'XXXX XXXX XXXX XXXX'
 
     FLASKY_MAIL_SUBJECT_PREFIX = '[Flasky]'
     FLASKY_MAIL_SENDER = 'Flasky Admin <3285186155@qq.com>'

@@ -22,6 +22,7 @@ class Permission:
     MODERATE = 8
     ADMIN = 16
 
+#用户文章定义
 class Post(db.Model):
     __tablename__ = 'posts'
     id = db.Column(db.Integer, primary_key=True)

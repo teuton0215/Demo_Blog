@@ -180,16 +180,3 @@ def change_email(token):
         flash('Invalid request.')
     return redirect(url_for('main.index'))
 
-
-#更新已经登录用户的最后访问时间
-@auth.before_request
-def before_request():
-    if current_user.is_authenticated:
-        current_user.ping()
-        if not current_user.confirmed \
-            and request.endpoint \
-            and request.blueprint != 'auth' \
-            and request.endpoint !='static' :
-            return   redirect(url_for('auth.unconfirmed'))
-
-

@@ -12,11 +12,7 @@ main= Blueprint('main',__name__)
 
 #从同意文件下导入views，errors模块
 from . import  views,errors
-from ..models import Permission
-
-
-
-
+from ..models import  Permission
 
 @main.app_context_processor
 def inject_permissions():

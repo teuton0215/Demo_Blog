@@ -11,7 +11,8 @@ from flask_login import UserMixin, AnonymousUserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import current_app
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
-
+import hashlib
+from flask import request
 
 # 用户权限定义
 class Permission:
@@ -20,6 +21,15 @@ class Permission:
     WRITE = 4
     MODERATE = 8
     ADMIN = 16
+
+class Post(db.Model):
+    __tablename__ = 'posts'
+    id = db.Column(db.Integer, primary_key=True)
+    body = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+
 class Role(db.Model):
     # 定义表名
     __tablename__ = 'roles'
@@ -27,63 +37,58 @@ class Role(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     # 字段名，字符型，不允许出现重复的值
     name = db.Column(db.String(64), unique=True)
-    # 默认用户
+    #默认角色
     default = db.Column(db.Boolean, default=False, index=True)
-    # 用户权限
+    #用户权限
     permissions = db.Column(db.Integer)
-    # 关联外键
+    #联外键
     users = db.relationship('User', backref='role', lazy='dynamic')
 
-    # g
     def __init__(self, **kwargs):
         super(Role, self).__init__(**kwargs)
         if self.permissions is None:
             self.permissions = 0
 
-    # 创建用户角色
     @staticmethod
-    # 静态方法
+    #静态函数，注意与一般函数的区别
     def insert_roles():
-        # 用户角色权限分配
-
         roles = {
             'User': [Permission.FOLLOW, Permission.COMMENT, Permission.WRITE],
-            'Moderator': [
-                Permission.FOLLOW, Permission.COMMENT,
-                Permission.WRITE, Permission.MODERATE],
+            'Moderator': [Permission.FOLLOW, Permission.COMMENT,
+                          Permission.WRITE, Permission.MODERATE],
             'Administrator': [Permission.FOLLOW, Permission.COMMENT,
                               Permission.WRITE, Permission.MODERATE,
-                              Permission.ADMIN, ],
+                              Permission.ADMIN],
         }
-
-        # 默认用户角色设为User
+        #默认用户角色
         default_role = 'User'
+
         for r in roles:
             role = Role.query.filter_by(name=r).first()
             if role is None:
                 role = Role(name=r)
-            role.reset_permission()
+            role.reset_permissions()
             for perm in roles[r]:
                 role.add_permission(perm)
             role.default = (role.name == default_role)
             db.session.add(role)
         db.session.commit()
 
-    # 加载用户权限
-    def add_permission(self, perm):
+    #添加用户权限
+    def add_permission(self,perm):
         if not self.has_permission(perm):
             self.permissions += perm
 
-    # 移除用户权限
+    #重置用户权限
+    def reset_permissions(self):
+        self.permissions = 0
+
+    #移除用户权限
     def remove_permission(self, perm):
         if self.has_permission(perm):
             self.permissions -= perm
 
-    # 重置用户权限
-    def reset_permissions(self):
-        self.permissions = 0
-
-    # 用户权限判断
+    #检查用户权限是否包含指定的单独权限
     def has_permission(self, perm):
         return self.permissions & perm == perm
 
@@ -98,19 +103,23 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(64), unique=True, index=True)
     # 用户名
     username = db.Column(db.String(64), unique=True, index=True)
-    # 用户密码
-    password_hash = db.Column(db.String(128))
     # 添加外键
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
+    # 用户密码
+    password_hash = db.Column(db.String(128))
     # 用户确认
     confirmed = db.Column(db.Boolean, default=False)
     #资料信息-姓名，所在地，自我介绍，注册日期，周后访问日期
     name = db.Column(db.String(64))
     location = db.Column(db.String(64))
     about_me = db.Column(db.Text())
-    member_since = db.Column(db.DateTime(),default=datetime.utcnow)
-    last_seen  =  db.Column(db.DateTime(),default=datetime.utcnow)
-    # 默认用户角色设置
+    member_since = db.Column(db.DateTime(), default=datetime.utcnow)
+    last_seen = db.Column(db.DateTime(), default=datetime.utcnow)
+    #散列值
+    avatar_hash = db.Column(db.String(32))
+    #关联文章
+    posts = db.relationship('Post', backref='author', lazy='dynamic')
+
     def __init__(self, **kwargs):
         super(User, self).__init__(**kwargs)
         if self.role is None:
@@ -189,35 +198,50 @@ class User(UserMixin, db.Model):
         if self.query.filter_by(email=new_email).first() is not None:
             return False
         self.email = new_email
+        self.avatar_hash = self.gravatar_hash()
         db.session.add(self)
         return True
 
-    # 检查用户是否有指定的权限
-    def can(self, perm):
-        return self.role is not None and self.role.has_permission(perm)
 
-    # 检查用户是否是管理员权限
+    #用户权限判断
+    def can(self, perm):
+        return  self.role is not  None and self.role.has_permission(perm)
+
+    #管理员权限判断
     def is_administrator(self):
         return self.can(Permission.ADMIN)
 
-    #刷新用户最后访问时间
+    #刷新用户的最后访问时间
     def ping(self):
         self.last_seen = datetime.utcnow()
         db.session.add(self)
         db.session.commit()
 
+    #生成Gravatar散列值,存在avatar_hash中
+    def gravatar_hash(self):
+            return hashlib.md5(self.email.lower().encode('utf-8')).hexdigest()
+
+    #图片生成
+    def gravatar(self, size=100, default='identicon', rating='g'):
+        if request.is_secure:
+            url = 'https://secure.gravatar.com/avatar'
+        else:
+            url = 'https://www.gravatar.com/avatar'
+        #生成散列值
+        hash = self.avatar_hash or self.gravatar_hash()
+        return '{url}/{hash}?s={size}&d={default}&r={rating}'.format(
+            url=url, hash=hash, size=size, default=default, rating=rating)
+
     def __repr__(self):
         return '<User %r>' % self.username
 
-
-# 匿名用户权限检查
+#无需登录，检查用户权限
 class AnonymousUser(AnonymousUserMixin):
     def can(self, permissions):
         return False
 
     def is_administrator(self):
         return False
-
 
 login_manager.anonymous_user = AnonymousUser
 
